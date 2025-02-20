@@ -7,9 +7,10 @@ import time
 import random
 from selenium.common.exceptions import NoSuchElementException
 
-from config import Config
-from linkedin_scraper import LinkedInScraper
-from data_manager import DataManager
+from src.config.config import Config
+from src.scraper.linkedin_scraper import LinkedInScraper
+from src.data.data_manager import DataManager
+from src.database.database_manager import DatabaseManager
 
 class LinkedInJobScraper:
     def __init__(self):
@@ -17,6 +18,7 @@ class LinkedInJobScraper:
         self.setup_driver()
         self.scraper = LinkedInScraper(self.driver)
         self.data_manager = DataManager()
+        self.db_manager = DatabaseManager(self.config.SUPABASE_URL, self.config.SUPABASE_KEY)
 
     def setup_driver(self):
         """Configure and initialize the Selenium WebDriver"""
@@ -40,6 +42,10 @@ class LinkedInJobScraper:
     def run(self):
         """Main execution flow"""
         try:
+            # Initialize database with migrations
+            print("Initializing database...")
+            self.db_manager.initialize_database()
+
             # Login
             self.scraper.login(self.config.LINKEDIN_EMAIL, self.config.LINKEDIN_PASSWORD)
 
@@ -64,7 +70,8 @@ class LinkedInJobScraper:
                     for i in range(processed_jobs, current_jobs_count):
                         if total_jobs_processed >= self.config.MAX_JOBS:
                             print(f"\nReached maximum job limit of {self.config.MAX_JOBS}")
-                            self.data_manager.save_to_csv()
+                            # Upsert collected jobs to database
+                            self.db_manager.upsert_jobs(self.data_manager.jobs)
                             return
                             
                         print(f"Processing job {i + 1} of {current_jobs_count} (Total: {total_jobs_processed + 1})")
@@ -113,8 +120,9 @@ class LinkedInJobScraper:
                     print("\nNo more pages available")
                     break
 
-            # Save results
-            self.data_manager.save_to_csv()
+            # Upsert all collected jobs to database
+            print("\nSaving jobs to database...")
+            self.db_manager.upsert_jobs(self.data_manager.jobs)
 
         finally:
             self.driver.quit()

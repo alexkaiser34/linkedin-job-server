@@ -14,7 +14,11 @@ class Config:
         self.JOB_ALERT_URL = os.getenv('JOB_ALERT_URL')
         
         # Maximum number of jobs to process
-        self.MAX_JOBS = int(os.getenv('MAX_JOBS', 50))
+        try:
+            self.MAX_JOBS = int(os.getenv('MAX_PROCESS_JOBS'))
+        except (TypeError, ValueError):
+            print("Warning: Invalid MAX_JOBS value in .env, defaulting to 50")
+            self.MAX_JOBS = 50
         
         # Selenium configuration
         self.WINDOW_SIZE = (
@@ -25,6 +29,10 @@ class Config:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         )
         self.CHROME_PROFILE = os.getenv('CHROME_PROFILE', 'chrome_profile')
+
+        # Supabase configuration
+        self.SUPABASE_URL = os.getenv('SUPABASE_URL')
+        self.SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
     def validate(self):
         """Validate that all required configuration is present"""

@@ -1,7 +1,7 @@
 import csv
 from datetime import datetime
 from typing import List
-from job_data import JobData
+from ..scraper.job_data import JobData
 
 class DataManager:
     def __init__(self):
@@ -16,7 +16,7 @@ class DataManager:
         if filename is None:
             filename = f"linkedin_jobs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
-        fieldnames = ['title', 'company', 'location', 'posted_time', 
+        fieldnames = ['title', 'job_url', 'company', 'location', 'posted_time', 
                      'applicants', 'description', 'error']
         
         try:

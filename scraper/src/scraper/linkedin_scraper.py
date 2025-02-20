@@ -1,10 +1,18 @@
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webelement import WebElement
+
 import time
 import random
-from job_data import JobData
+from selenium.common.exceptions import (
+    StaleElementReferenceException, 
+    NoSuchElementException,
+    TimeoutException
+)
+from ..scraper.job_data import JobData
 
 class LinkedInScraper:
     def __init__(self, driver):
@@ -82,61 +90,66 @@ class LinkedInScraper:
             print(f"Error during login process: {str(e)}")
             return False
 
-    def extract_job_details(self, job_card) -> JobData:
+    def extract_job_details(self, job_card: WebElement) -> JobData:
         """Extract job details from a job card"""
         job_data = JobData.create_empty()
         
         try:
-            # Try to click the job card using JavaScript instead of direct click
-            self.driver.execute_script("arguments[0].click();", job_card)
-            time.sleep(1)
+            # Get job ID and title before element becomes stale
+            job_card_id = job_card.get_attribute('data-job-id')
+            title_link = job_card.find_element(By.CSS_SELECTOR, "a.job-card-list__title--link")
+            title = title_link.get_attribute('aria-label') or title_link.find_element(By.TAG_NAME, "span").text
             
-            # Basic information - title
-            try:
-                title = job_card.find_element(By.CSS_SELECTOR, "h3.base-search-card__title").text.strip()
-            except NoSuchElementException:
-                try:
-                    title = job_card.find_element(By.CSS_SELECTOR, ".job-card-container__link").text.strip()
-                except NoSuchElementException:
-                    title = "Not available"
+            if not job_card_id:
+                return job_data
+            
+            job_data.job_url = f"https://www.linkedin.com/jobs/view/{job_card_id}"
             job_data.title = self.clean_text(title)
+            
+            # Re-find the job card using the ID to avoid stale element
+            wait = WebDriverWait(self.driver, 2)
+            refreshed_card = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, f"div[data-job-id='{job_card_id}']"))
+            )
+            
+            # Click the refreshed card
+            self.driver.execute_script("arguments[0].click();", refreshed_card)
+            time.sleep(0.5)  # Slightly longer wait after click
 
-            # Company name from job details card
+            # Company
             try:
-                company_element = self.driver.find_element(By.CLASS_NAME, 
-                    "job-details-jobs-unified-top-card__company-name")
-                company_link = company_element.find_element(By.TAG_NAME, "a")
-                job_data.company = self.clean_text(company_link.text)
-            except NoSuchElementException as e:
-                print(f"Error finding company information: {str(e)}")
+                company = wait.until(EC.presence_of_element_located(
+                    (By.CLASS_NAME, "job-details-jobs-unified-top-card__company-name"))).text.strip()
+                job_data.company = self.clean_text(company)
+            except (StaleElementReferenceException, TimeoutException):
+                job_data.company = "Not available"
 
-            # Get spans from primary description container
+            # Location and other details
             try:
-                container = self.driver.find_element(By.CLASS_NAME, 
-                    "job-details-jobs-unified-top-card__primary-description-container")
+                container = wait.until(EC.presence_of_element_located(
+                    (By.CLASS_NAME, "job-details-jobs-unified-top-card__primary-description-container")))
                 spans = container.find_elements(By.TAG_NAME, "span")
-                
                 if spans:
                     job_data.location = self.clean_text(spans[0].text)
                     if len(spans) >= 5:
                         job_data.posted_time = self.clean_text(spans[4].text)
                     job_data.applicants = self.clean_text(spans[-1].text)
-                    
-            except NoSuchElementException as e:
-                print(f"Error finding primary description container: {str(e)}")
-
-            # Get the full HTML of the job description
-            try:
-                description_container = self.driver.find_element(By.CLASS_NAME, "jobs-description__container")
-                job_data.description = description_container.get_attribute('innerHTML')
-            except NoSuchElementException:
+            except (StaleElementReferenceException, TimeoutException):
                 pass
 
+            # Description
+            try:
+                description = wait.until(EC.presence_of_element_located(
+                    (By.CLASS_NAME, "jobs-description__container"))).get_attribute('innerHTML')
+                job_data.description = description
+            except (StaleElementReferenceException, TimeoutException):
+                job_data.description = "Not available"
+            
+            return job_data
+            
         except Exception as e:
             print(f"Error extracting job details: {str(e)}")
-            job_data.error = str(e)
-        
-        return job_data
+            return job_data
 
     @staticmethod
     def clean_text(text):

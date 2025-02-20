@@ -5,6 +5,7 @@ from datetime import datetime
 class JobData:
     """Data class to store job information"""
     title: str
+    job_url: str
     company: str
     location: str
     posted_time: str
@@ -17,6 +18,7 @@ class JobData:
         """Create an empty job data object with default values"""
         return cls(
             title="Not available",
+            job_url="Not available",
             company="Not available",
             location="Not available",
             posted_time="Not available",
