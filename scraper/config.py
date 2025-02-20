@@ -13,6 +13,9 @@ class Config:
         # Job search URL
         self.JOB_ALERT_URL = os.getenv('JOB_ALERT_URL')
         
+        # Maximum number of jobs to process
+        self.MAX_JOBS = int(os.getenv('MAX_JOBS', 50))
+        
         # Selenium configuration
         self.WINDOW_SIZE = (
             int(os.getenv('WINDOW_SIZE_WIDTH', 1920)),

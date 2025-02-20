@@ -5,6 +5,7 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import random
+from selenium.common.exceptions import NoSuchElementException
 
 from config import Config
 from linkedin_scraper import LinkedInScraper
@@ -44,18 +45,73 @@ class LinkedInJobScraper:
 
             # Navigate to job search page
             self.driver.get(self.config.JOB_ALERT_URL)
-            time.sleep(5)
+            time.sleep(1)
             self.scraper.wait_for_captcha()
 
-            # Extract job details
-            job_cards = self.driver.find_elements(By.CLASS_NAME, "job-card-container")
+            page = 1
+            total_jobs_processed = 0
             
-            print("\nExtracting job details...")
-            for i, job_card in enumerate(job_cards, 1):
-                print(f"Processing job {i} of {len(job_cards)}...")
-                job_data = self.scraper.extract_job_details(job_card)
-                self.data_manager.add_job(job_data)
-                time.sleep(random.uniform(1, 2))
+            while total_jobs_processed < self.config.MAX_JOBS:
+                print(f"\nProcessing page {page}")
+                processed_jobs = 0
+                
+                while True:
+                    # Get current visible job cards
+                    job_cards = self.driver.find_elements(By.CLASS_NAME, "job-card-container")
+                    current_jobs_count = len(job_cards)
+                    
+                    # Process only new jobs (ones we haven't processed yet)
+                    for i in range(processed_jobs, current_jobs_count):
+                        if total_jobs_processed >= self.config.MAX_JOBS:
+                            print(f"\nReached maximum job limit of {self.config.MAX_JOBS}")
+                            self.data_manager.save_to_csv()
+                            return
+                            
+                        print(f"Processing job {i + 1} of {current_jobs_count} (Total: {total_jobs_processed + 1})")
+                        job_data = self.scraper.extract_job_details(job_cards[i])
+                        self.data_manager.add_job(job_data)
+                        total_jobs_processed += 1
+                        time.sleep(0.2)
+                    
+                    processed_jobs = current_jobs_count
+                    
+                    # Scroll to the last job card to trigger loading more
+                    if job_cards:
+                        last_job = job_cards[-1]
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", last_job)
+                        time.sleep(0.5)
+                    
+                    # Check if we got any new jobs after scrolling
+                    new_job_cards = self.driver.find_elements(By.CLASS_NAME, "job-card-container")
+                    if len(new_job_cards) == current_jobs_count:
+                        print(f"No more jobs loading on page {page}")
+                        break
+                
+                print(f"Processed {processed_jobs} jobs on page {page}")
+                
+                # Try to go to next page
+                try:
+                    # Scroll back to top to ensure pagination is visible
+                    self.driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(0.5)
+                    
+                    # Find and click the next page number button
+                    next_page = page + 1
+                    next_page_button = self.driver.find_element(By.CSS_SELECTOR, 
+                        f"button[aria-label='Page {next_page}']")
+                    
+                    if not next_page_button:
+                        print("\nReached last page")
+                        break
+                        
+                    # Use JavaScript to click the button
+                    self.driver.execute_script("arguments[0].click();", next_page_button)
+                    page += 1
+                    time.sleep(1)
+                    
+                except NoSuchElementException:
+                    print("\nNo more pages available")
+                    break
 
             # Save results
             self.data_manager.save_to_csv()

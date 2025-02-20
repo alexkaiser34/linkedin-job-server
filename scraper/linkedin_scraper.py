@@ -87,9 +87,9 @@ class LinkedInScraper:
         job_data = JobData.create_empty()
         
         try:
-            # Click on the job card to load details
-            job_card.click()
-            time.sleep(3)
+            # Try to click the job card using JavaScript instead of direct click
+            self.driver.execute_script("arguments[0].click();", job_card)
+            time.sleep(1)
             
             # Basic information - title
             try:
