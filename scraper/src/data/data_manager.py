@@ -17,7 +17,7 @@ class DataManager:
             filename = f"linkedin_jobs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
         fieldnames = ['title', 'job_url', 'company', 'location', 'posted_time', 
-                     'applicants', 'description', 'error']
+                     'applicants', 'description']
         
         try:
             with open(filename, 'w', newline='', encoding='utf-8') as csvfile:

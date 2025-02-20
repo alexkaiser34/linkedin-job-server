@@ -121,7 +121,7 @@ class LinkedInJobScraper:
             total_jobs_processed = 0
             wait = WebDriverWait(self.driver, 5)
             
-            while total_jobs_processed < self.config.MAX_JOBS:
+            while total_jobs_processed < self.config.MAX_PROCESS_JOBS:
                 print(f"\nProcessing page {page}")
                 processed_jobs = 0
                 
@@ -141,9 +141,9 @@ class LinkedInJobScraper:
                     
                     # Process only new jobs
                     for i in range(processed_jobs, current_jobs_count):
-                        if total_jobs_processed >= self.config.MAX_JOBS:
-                            print(f"\nReached maximum job limit of {self.config.MAX_JOBS}")
-                            self.db_manager.upsert_jobs(self.data_manager.jobs)
+                        if total_jobs_processed >= self.config.MAX_PROCESS_JOBS:
+                            print(f"\nReached maximum job limit of {self.config.MAX_PROCESS_JOBS}")
+                            self.db_manager.upsert_jobs(self.data_manager.jobs) 
                             return
                             
                         print(f"Processing job {i + 1} of {current_jobs_count} (Total: {total_jobs_processed + 1})")
@@ -152,7 +152,11 @@ class LinkedInJobScraper:
                         delay = random.uniform(0.5, 1.0)  # Random delay between 0.5-1 seconds
                         time.sleep(delay)
                         
-                        job_data = self.scraper.extract_job_details(i)
+                        job_data, success = self.scraper.extract_job_details(i)
+                        if not success:
+                            print(f"Failed to extract job details for job {i + 1}")
+                            continue
+                        
                         self.data_manager.add_job(job_data)
                         total_jobs_processed += 1
                         

@@ -11,7 +11,6 @@ class JobData:
     posted_time: str
     applicants: str
     description: str
-    error: str = None
 
     @classmethod
     def create_empty(cls):

@@ -5,7 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 import time
 import random
@@ -187,7 +187,7 @@ class LinkedInScraper:
             print(f"Timeout waiting for job details to load: {str(e)}")
             return False
 
-    def extract_job_details(self, job_index: int) -> JobData:
+    def extract_job_details(self, job_index: int) -> Tuple[JobData, bool]:
         """Extract job details from a job card using its index in the list"""
         job_data = JobData.create_empty()
         
@@ -211,7 +211,7 @@ class LinkedInScraper:
             
             if job_index >= len(job_cards):
                 print(f"Job index {job_index} out of range")
-                return job_data
+                return job_data, False
             
             # Get fresh reference to the specific job card
             job_card = job_cards[job_index]
@@ -226,8 +226,8 @@ class LinkedInScraper:
             
             # Wait for loading to complete
             if not self.wait_for_job_details_loading():
-                print("Failed to load job details, returning partial data")
-                return job_data
+                print("Failed to load job details, skipping job")
+                return job_data, False
             
             # Now get the job details
             try:
@@ -240,14 +240,21 @@ class LinkedInScraper:
                 # Description
                 job_data.description = self._get_job_description()
                 
+            except StaleElementReferenceException:
+                print("Stale element encountered while getting job details, skipping job")
+                return job_data, False
             except Exception as e:
                 print(f"Error extracting job details after loading: {str(e)}")
+                return job_data, False
             
-            return job_data
+            return job_data, True
             
+        except StaleElementReferenceException:
+            print("Stale element encountered, skipping job")
+            return job_data, False
         except Exception as e:
             print(f"Error extracting job details: {str(e)}")
-            return job_data
+            return job_data, False
 
     def _get_job_url(self, job_card_id: str) -> str:
         """Get the job URL from the job card ID"""
@@ -266,6 +273,9 @@ class LinkedInScraper:
                 return found_element.get_attribute('innerHTML')
             else:
                 return self.clean_text(found_element.get_attribute(selector.attribute))
+        except StaleElementReferenceException:
+            print("Stale element encountered in get_element_data, skipping job")
+            raise  # This will be caught in extract_job_details
         except Exception as e:
             print(f"Error extracting data with selector {selector.selector}: {str(e)}")
             return "Not available"
@@ -281,8 +291,14 @@ class LinkedInScraper:
                     value = (found_element.text if nested["attribute"] == "text" 
                             else found_element.get_attribute(nested["attribute"]))
                     result[nested["type"]] = self.clean_text(value)
+                except StaleElementReferenceException:
+                    print("Stale element encountered in nested selector, skipping job")
+                    raise  # This will be caught in extract_job_details
                 except Exception:
                     result[nested["type"]] = "Not available"
+        except StaleElementReferenceException:
+            print("Stale element encountered in container, skipping job")
+            raise  # This will be caught in extract_job_details
         except Exception as e:
             print(f"Error handling nested selectors: {str(e)}")
             for nested in selector.nested_selectors:
@@ -290,7 +306,11 @@ class LinkedInScraper:
         return result
 
     def _get_job_title(self, job_card: WebElement) -> str:
-        return self._get_element_data(job_card, self.selectors['title'])
+        try:
+            return self._get_element_data(job_card, self.selectors['title'])
+        except StaleElementReferenceException:
+            print("Stale element encountered getting job title, skipping job")
+            raise
 
     def _click_job_card(self, job_card_id: str) -> Optional[WebElement]:
         """Click the job card and return the refreshed element"""
@@ -311,7 +331,10 @@ class LinkedInScraper:
             company_element = wait.until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, self.selectors['company'].selector)))
             return self._get_element_data(company_element.parent, self.selectors['company'])
-        except (TimeoutException, StaleElementReferenceException):
+        except StaleElementReferenceException:
+            print("Stale element encountered getting company name, skipping job")
+            raise
+        except (TimeoutException, Exception):
             return "Not available"
 
     def _get_job_metadata(self, job_data: JobData) -> None:
@@ -328,7 +351,10 @@ class LinkedInScraper:
             job_data.posted_time = metadata.get('posted_time', "Not available")
             job_data.applicants = metadata.get('applicants', "Not available")
             
-        except (TimeoutException, StaleElementReferenceException) as e:
+        except StaleElementReferenceException:
+            print("Stale element encountered getting job metadata, skipping job")
+            raise
+        except (TimeoutException, Exception) as e:
             print(f"Error getting job metadata: {str(e)}")
             job_data.location = "Not available"
             job_data.posted_time = "Not available"
@@ -340,7 +366,10 @@ class LinkedInScraper:
             description_element = wait.until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, self.selectors['description'].selector)))
             return self._get_element_data(description_element.parent, self.selectors['description'])
-        except (TimeoutException, StaleElementReferenceException):
+        except StaleElementReferenceException:
+            print("Stale element encountered getting job description, skipping job")
+            raise
+        except (TimeoutException, Exception):
             return "Not available"
 
     @staticmethod

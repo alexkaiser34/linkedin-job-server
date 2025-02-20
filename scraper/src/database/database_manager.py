@@ -14,6 +14,11 @@ class DatabaseManager:
         try:
             print("Running database migrations...")
             self.migration_manager.run_migrations()
+            
+            # Call delete_old_jobs function after migrations
+            print("Cleaning up old jobs...")
+            self.supabase.rpc('delete_old_jobs').execute()
+            
             print("Database initialization complete")
         except Exception as e:
             print(f"Error initializing database: {str(e)}")

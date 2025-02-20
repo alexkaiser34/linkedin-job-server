@@ -1,10 +1,13 @@
 import os
 from dotenv import load_dotenv
-
+from pathlib import Path
 class Config:
     def __init__(self):
-        # Load environment variables from .env file
-        load_dotenv()
+        # Get the path to the .env file (in project root)
+        env_path = Path(__file__).parents[2] / '.env'
+        
+        # Force reload of .env file with explicit path
+        load_dotenv(dotenv_path=env_path, override=True)
         
         # LinkedIn credentials
         self.LINKEDIN_EMAIL = os.getenv('LINKEDIN_EMAIL')
@@ -15,10 +18,10 @@ class Config:
         
         # Maximum number of jobs to process
         try:
-            self.MAX_JOBS = int(os.getenv('MAX_PROCESS_JOBS'))
+            self.MAX_PROCESS_JOBS = int(os.getenv('MAX_PROCESS_JOBS'))
         except (TypeError, ValueError):
-            print("Warning: Invalid MAX_JOBS value in .env, defaulting to 50")
-            self.MAX_JOBS = 50
+            print("Warning: Invalid MAX_PROCESS_JOBS value in .env, defaulting to 50")
+            self.MAX_PROCESS_JOBS = 50
         
         # Selenium configuration
         self.WINDOW_SIZE = (
