@@ -31,7 +31,8 @@ class Config:
         self.USER_AGENT = os.getenv('USER_AGENT', 
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         )
-        self.CHROME_PROFILE = os.getenv('CHROME_PROFILE', 'chrome_profile')
+        self.CHROME_PROFILE = os.getenv('CHROME_PROFILE')
+        self.SELENIUM_HOST = os.getenv('SELENIUM_HOST')
 
         # Supabase configuration
         self.SUPABASE_URL = os.getenv('SUPABASE_URL')

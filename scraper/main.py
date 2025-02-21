@@ -4,10 +4,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 import time
 import random
-from selenium.common.exceptions import NoSuchElementException
 
 from src.config.config import Config
 from src.scraper.linkedin_scraper import LinkedInScraper
@@ -15,6 +13,7 @@ from src.data.data_manager import DataManager
 from src.database.database_manager import DatabaseManager
 
 class LinkedInJobScraper:
+    
     def __init__(self):
         self.config = Config()
         self.setup_driver()
@@ -72,8 +71,10 @@ class LinkedInJobScraper:
         options.add_experimental_option('prefs', prefs)
 
         # Initialize the driver
-        service = Service(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=options)
+        self.driver = webdriver.Remote(
+            command_executor=self.config.SELENIUM_HOST,
+            options=options
+        )
         
         # Set window size
         self.driver.set_window_size(*self.config.WINDOW_SIZE)

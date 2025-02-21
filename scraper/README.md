@@ -72,12 +72,51 @@ The main dependencies are listed in `requirements.txt`:
 - python-dotenv: For environment variable management
 - webdriver_manager: For Chrome WebDriver management
 
+### Docker Deployment
+
+#### Prerequisites for Docker Setup
+- Docker installed on your ARM64 system
+- Access to an Oracle VM or similar ARM64 environment
+
+#### Running with Docker
+
+1. Start the Selenium Chromium container:
+```bash
+docker run -d -p 4444:4444 \
+  -v $(pwd)/chrome_profile:<path_to_chrome_profile> \
+  --shm-size=4g \
+  --name selenium-chrome \
+  selenium/standalone-chromium
+```
+
+2. Configure the application to use the remote WebDriver:
+   - Update your `.env` file to include:
+```bash
+SELENIUM_HOST=<path_to_selenium_host>
+CHROME_PROFILE=<path_to_chrome_profile>
+```
+
+3. Run the application:
+   - You can run the application directly on the host:
+```bash
+python main.py
+```
+
+#### Important Docker Notes
+- The `--shm-size=4g` flag is crucial for stable browser operation
+- Chrome profile data is persisted in the `chrome_profile` directory
+- The Selenium container runs on port 4444 by default
+
+#### Troubleshooting
+- If the Selenium container fails to start, check Docker logs:
+```bash
+docker logs selenium-chrome
+```
+- If the browser crashes, try increasing the shared memory size
+- Ensure all mounted directories have appropriate permissions
+
 ## Contributing
 Feel free to submit issues, fork the repository, and create pull requests for any improvements.
 
-## License
-[Your chosen license]
-
 ## Disclaimer
 This tool is for educational purposes only. Make sure to comply with LinkedIn's terms of service and implement appropriate delays between requests to avoid overloading their servers.
-
