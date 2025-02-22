@@ -153,6 +153,81 @@ docker logs selenium-chrome
 chmod 777 chrome_profile
 ```
 
+## Automated Scheduling
+
+#### Setting up Cron Job
+To run the scraper automatically every 10 minutes:
+
+1. Use shell script to run the scraper (`cron_script/run_scraper.sh`)
+
+2. Make the script executable:
+```bash
+chmod +x cron_script/run_scraper.sh
+```
+
+3. Set up the cron job:
+```bash
+crontab -e
+```
+
+4. Add the following line to run every 10 minutes:
+```bash
+*/10 * * * * /path/to/your/project/run_scraper.sh >> /path/to/your/project/scraper.log 2>&1
+```
+
+5. Verify the cron job is scheduled:
+```bash
+crontab -l
+```
+
+#### Log Rotation
+To prevent log files from growing too large:
+
+1. Create a logrotate configuration file:
+```bash
+sudo nano /etc/logrotate.d/scraper
+```
+
+2. Add the following configuration:
+```
+/path/to/your/project/scraper.log {
+    hourly
+    rotate 1
+    missingok
+    notifempty
+    create 644 your_username your_group
+}
+```
+
+3. Test the log rotation configuration:
+```bash
+sudo logrotate -d /etc/logrotate.d/scraper
+```
+
+This configuration will:
+- Rotate logs hourly
+- Keep only 1 rotation of logs
+- Skip rotation if log is empty
+- Set appropriate permissions
+
+#### Verifying the Setup
+1. Check if cron service is running and enabled:
+```bash
+sudo systemctl status cron
+```
+
+2. Enable cron service to start on boot if needed:
+```bash
+sudo systemctl enable cron
+```
+
+3. Monitor the log file:
+```bash
+tail -f scraper.log
+```
+
+The scraper will now run automatically every 10 minutes, and logs will be properly managed through rotation.
+
 ## Contributing
 Feel free to submit issues, fork the repository, and create pull requests for any improvements.
 
