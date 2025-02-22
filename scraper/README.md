@@ -170,10 +170,11 @@ chmod +x cron_script/run_scraper.sh
 crontab -e
 ```
 
-4. Add the following line to run every 10 minutes:
+4. Add the following line to run every 10 minutes during business hours:
 ```bash
-*/10 * * * * /path/to/your/project/run_scraper.sh >> /path/to/your/project/scraper.log 2>&1
+*/10 13-23,0-1 * * * /path/to/your/project/run_scraper.sh >> /path/to/your/project/scraper.log 2>&1
 ```
+Note: This schedule assumes your server is in UTC time and will run the scraper every 10 minutes between 8 AM and 8 PM EST (13:00-01:00 UTC).
 
 5. Verify the cron job is scheduled:
 ```bash
