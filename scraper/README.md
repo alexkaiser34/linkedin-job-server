@@ -86,7 +86,7 @@ The main dependencies are listed in `requirements.txt`:
 docker run -d --restart always \
   -p 4444:4444 -p 7900:7900 \
   -v $(pwd)/chrome_profile:/home/chrome-profile-data \
-  --shm-size="4g" \
+  --shm-size="8g" \
   --name selenium-chrome \
   selenium/standalone-chromium
 ```
@@ -125,7 +125,7 @@ python main.py
 ```
 
 #### Important Docker Notes
-- The `--shm-size="4g"` flag is crucial for stable browser operation
+- The `--shm-size="8g"` flag is crucial for stable browser operation
 - Chrome profile data is persisted in the `chrome_profile` directory
 - Port 4444 is used for Selenium WebDriver communication
 - Port 7900 is used for VNC access to view the browser
