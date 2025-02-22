@@ -17,7 +17,7 @@ class LinkedInJobScraper:
     def __init__(self):
         self.config = Config()
         self.setup_driver()
-        self.scraper = LinkedInScraper(self.driver)
+        self.scraper = LinkedInScraper(self.driver, self.config)
         self.data_manager = DataManager()
         self.db_manager = DatabaseManager(self.config.SUPABASE_URL, self.config.SUPABASE_KEY)
 
@@ -252,4 +252,4 @@ class LinkedInJobScraper:
 
 if __name__ == "__main__":
     scraper = LinkedInJobScraper()
-    scraper.run() 
+    scraper.run()

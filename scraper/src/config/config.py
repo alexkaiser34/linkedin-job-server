@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+
 class Config:
     def __init__(self):
         # Get the path to the .env file (in project root)
@@ -15,6 +16,13 @@ class Config:
         
         # Job search URL
         self.JOB_ALERT_URL = os.getenv('JOB_ALERT_URL')
+        
+        # Email configuration
+        self.EMAIL_HOST = os.getenv('EMAIL_HOST')
+        self.EMAIL_PORT = int(os.getenv('EMAIL_PORT', 465))  # Default to 465 if not set
+        self.EMAIL_USER = os.getenv('EMAIL_USER')
+        self.EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+        self.EMAIL_TO = os.getenv('EMAIL_TO')
         
         # Maximum number of jobs to process
         try:
@@ -43,7 +51,11 @@ class Config:
         required_fields = [
             ('LINKEDIN_EMAIL', self.LINKEDIN_EMAIL),
             ('LINKEDIN_PASSWORD', self.LINKEDIN_PASSWORD),
-            ('JOB_ALERT_URL', self.JOB_ALERT_URL)
+            ('JOB_ALERT_URL', self.JOB_ALERT_URL),
+            ('EMAIL_HOST', self.EMAIL_HOST),
+            ('EMAIL_USER', self.EMAIL_USER),
+            ('EMAIL_PASSWORD', self.EMAIL_PASSWORD),
+            ('EMAIL_TO', self.EMAIL_TO)
         ]
         
         missing_fields = [field[0] for field in required_fields if not field[1]]

@@ -15,6 +15,9 @@ from selenium.common.exceptions import (
     TimeoutException
 )
 from ..scraper.job_data import JobData
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 @dataclass
 class JobSelector:
@@ -63,10 +66,11 @@ class LinkedInSelectors:
     }
 
 class LinkedInScraper:
-    def __init__(self, driver):
+    def __init__(self, driver, config):
         self.driver = driver
         self.selectors = LinkedInSelectors.JOB_LIST
-
+        self.config = config
+        
     def wait_for_captcha(self):
         """Pause execution until CAPTCHA is solved manually."""
         while True:
@@ -96,8 +100,68 @@ class LinkedInScraper:
             print(f"Error checking login status: {str(e)}")
             return False
 
+    def send_timeout_email(self):
+        """Send an email notification if security check times out."""
+        try:
+            # Create the email content
+            msg = MIMEMultipart()
+            msg['From'] = self.config.EMAIL_USER
+            msg['To'] = self.config.EMAIL_TO
+            msg['Subject'] = "LinkedIn Scraper Security Check Timeout"
+            
+            body = "The LinkedIn scraper has timed out while waiting for a security check to be completed."
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Set up the server using SMTP_SSL
+            with smtplib.SMTP_SSL(self.config.EMAIL_HOST, self.config.EMAIL_PORT) as server:
+                server.login(self.config.EMAIL_USER, self.config.EMAIL_PASSWORD)
+                
+                # Send the email
+                server.sendmail(self.config.EMAIL_USER, self.config.EMAIL_TO, msg.as_string())
+            
+            print("Timeout email sent successfully.")
+            
+        except Exception as e:
+            print(f"Failed to send timeout email: {str(e)}")
+
+    def wait_for_security_check(self, timeout=300):
+        """
+        Wait for user to complete security check manually.
+        Returns True if security check is completed, False if timeout.
+        """
+        print("\n" + "="*50)
+        print("SECURITY CHECKPOINT DETECTED!")
+        print("Please complete the security verification in your browser:")
+        print(f"http://localhost:6080/vnc.html")
+        print("The script will continue once verification is completed")
+        print("="*50 + "\n")
+        
+        start_time = time.time()
+        security_patterns = [
+            "checkpoint/challenge",
+            "checkpoint/lg/login",
+            "security-verification",
+            "security-challenge"
+        ]
+        
+        while time.time() - start_time < timeout:
+            current_url = self.driver.current_url
+            if not any(pattern in current_url for pattern in security_patterns):
+                print("\nSecurity check completed! Continuing...")
+                time.sleep(2)  # Wait for page to fully load
+                return True
+            
+            # Check every 5 seconds
+            print("Waiting for security check completion... " +
+                  f"({int(timeout - (time.time() - start_time))} seconds remaining)")
+            time.sleep(5)
+        
+        print("\nTimeout waiting for security check completion!")
+        self.send_timeout_email()
+        return False
+
     def login(self, email, password):
-        """Login to LinkedIn"""
+        """Login to LinkedIn with security check handling"""
         try:
             # Check if already logged in
             if self.is_logged_in():
@@ -108,9 +172,11 @@ class LinkedInScraper:
             self.driver.get("https://www.linkedin.com/login")
             time.sleep(random.uniform(2, 4))
 
+            # Find and fill in credentials
             username = self.driver.find_element(By.ID, "username")
             password_field = self.driver.find_element(By.ID, "password")
 
+            # Type like a human
             for char in email:
                 username.send_keys(char)
                 time.sleep(random.uniform(0.1, 0.3))
@@ -125,6 +191,21 @@ class LinkedInScraper:
             password_field.send_keys(Keys.RETURN)
 
             time.sleep(3)
+            
+            # Check for security checkpoint
+            security_patterns = [
+                "checkpoint/challenge",
+                "checkpoint/lg/login",
+                "security-verification",
+                "security-challenge"
+            ]
+            
+            if any(pattern in self.driver.current_url for pattern in security_patterns):
+                if not self.wait_for_security_check():
+                    print("Failed to complete security check!")
+                    return False
+            
+            # Check for CAPTCHA
             self.wait_for_captcha()
 
             # Verify login was successful
