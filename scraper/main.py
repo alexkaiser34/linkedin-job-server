@@ -25,40 +25,49 @@ class LinkedInJobScraper:
         """Configure and initialize the Selenium WebDriver with optimized settings"""
         options = Options()
         
-        # Window size and basic settings
-        options.add_argument(f'--window-size={self.config.WINDOW_SIZE[0]},{self.config.WINDOW_SIZE[1]}')
-        options.add_argument('--start-maximized')
-        options.add_argument('--disable-blink-features=AutomationControlled')
+        # Profile and session persistence
+        options.add_argument(f'--user-data-dir={self.config.CHROME_PROFILE}')
+        options.add_argument('--profile-directory=Default')
+        options.add_argument('--enable-profile-shortcut-manager')
+        options.add_argument('--password-store=basic')
         
-        # Performance settings
-        options.add_argument('--disable-gpu')
+        # Performance optimization settings
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--disable-extensions')
         options.add_argument('--disable-infobars')
         options.add_argument('--disable-notifications')
         options.add_argument('--disable-popup-blocking')
         
-        # Network settings
+        # Memory and resource optimization
+        options.add_argument('--disable-features=TranslateUI')
+        options.add_argument('--disable-translate')
         options.add_argument('--disable-web-security')
-        options.add_argument('--ignore-certificate-errors')
-        options.add_argument('--allow-running-insecure-content')
+        options.add_argument('--disable-client-side-phishing-detection')
+        options.add_argument('--disable-component-extensions-with-background-pages')
+        options.add_argument('--disable-default-apps')
+        options.add_argument('--disable-background-timer-throttling')
+        options.add_argument('--disable-backgrounding-occluded-windows')
+        options.add_argument('--disable-renderer-backgrounding')
         
-        # Cache and cookie settings
-        options.add_argument('--disable-application-cache')
-        options.add_argument('--disable-browser-side-navigation')
-        options.add_argument(f'--user-data-dir={self.config.CHROME_PROFILE}')
-        
-        # Set custom user agent
-        options.add_argument(f'--user-agent={self.config.USER_AGENT}')
-        
-        # Automation settings
-        options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        options.add_experimental_option('useAutomationExtension', False)
+        # Network optimization
+        options.add_argument('--dns-prefetch-disable')
+        options.add_argument('--disable-sync')
+        options.add_argument('--no-proxy-server')
+        options.add_argument('--disable-web-resources')
         
         # Page load strategy
-        options.page_load_strategy = 'normal'
+        options.page_load_strategy = 'eager'
         
-        # Additional performance settings
+        # User agent
+        options.add_argument(f'user-agent={self.config.USER_AGENT}')
+        
+        # Start optimized options
+        options.add_argument('--start-maximized')
+        options.add_argument('--window-size=1920,1080')
+        
+        # Additional performance preferences
         prefs = {
             'profile.default_content_setting_values.notifications': 2,
             'profile.default_content_settings.popups': 0,
@@ -66,40 +75,32 @@ class LinkedInJobScraper:
             'download.directory_upgrade': True,
             'safebrowsing.enabled': True,
             'disk-cache-size': 4096,
-            'network.cookie.cookieBehavior': 0
+            'media.autoplay.enabled': False,
+            'media.cache_size': 0,
+            'permissions.default.stylesheet': 2,
+            'javascript.enabled': True,
+            'dom.ipc.plugins.enabled': False,
+            'browser.cache.memory.enable': True,
+            'browser.cache.memory.capacity': 4096,
+            'browser.cache.disk.enable': False,
+            'network.cookie.cookieBehavior': 0,
+            'network.http.max-connections-per-server': 10,
+            'network.http.max-persistent-connections-per-server': 5,
+            'credentials_enable_service': True,
+            'profile.password_manager_enabled': True,
         }
         options.add_experimental_option('prefs', prefs)
-
-        # Initialize the driver
+        
+        # Initialize the driver with optimized settings
         self.driver = webdriver.Remote(
             command_executor=self.config.SELENIUM_HOST,
             options=options
         )
         
-        # Set window size
-        self.driver.set_window_size(*self.config.WINDOW_SIZE)
-        
-        # Set page load timeout and script timeout
-        self.driver.set_page_load_timeout(30)
-        self.driver.set_script_timeout(30)
-        
-        # Modify navigator.webdriver flag to avoid detection
-        self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-            'source': '''
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-                // For older Chrome versions
-                window.navigator.chrome = {
-                    runtime: {},
-                };
-            '''
-        })
-        
-        # Additional CDP commands to improve performance
-        self.driver.execute_cdp_cmd('Network.enable', {})
-        self.driver.execute_cdp_cmd('Network.setBypassServiceWorker', {'bypass': True})
-        self.driver.execute_cdp_cmd('Page.enable', {})
+        # Set timeouts
+        self.driver.set_page_load_timeout(20)
+        self.driver.set_script_timeout(20)
+        self.driver.implicitly_wait(2)
         
         return self.driver
 
@@ -151,7 +152,7 @@ class LinkedInJobScraper:
                         
                         # Add delay before processing next job
                         delay = random.uniform(0.5, 1.0)  # Random delay between 0.5-1 seconds
-                        time.sleep(delay)
+                        # time.sleep(delay)
                         
                         job_data, success = self.scraper.extract_job_details(i)
                         if not success:
@@ -163,7 +164,7 @@ class LinkedInJobScraper:
                         
                         # Add delay after processing job
                         delay = random.uniform(0.5, 1.0)  # Random delay between 0.5-1 seconds
-                        time.sleep(delay)
+                        # time.sleep(delay)
                     
                     processed_jobs = current_jobs_count
                     
