@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.supabase_service import process_supabase_webhook
+from api.services.supabase_service import process_supabase_webhook
 
 webhook_bp = Blueprint('webhook', __name__, url_prefix='/webhook')
 
