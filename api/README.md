@@ -131,7 +131,7 @@ When switching between development and production:
 
 1. Create a new route class file in the `api/routes` directory:
    ```python
-   from api.routes.base_route import BaseRoute
+   from base_route import BaseRoute
    
    class NewRoutes(BaseRoute):
        blueprint_name = 'new'
@@ -150,7 +150,7 @@ When switching between development and production:
 
 2. Add your new route class to the list in `api/routes/__init__.py`:
    ```python
-   from api.routes.new_routes import NewRoutes
+   from new_routes import NewRoutes
    
    class Routes:
        route_classes = [

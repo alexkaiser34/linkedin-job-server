@@ -91,6 +91,7 @@ yarn-error.log*
 
 # Vercel
 .now
+.secrets
 
 # ngrok
 ngrok.yml

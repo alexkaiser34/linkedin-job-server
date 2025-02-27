@@ -20,22 +20,29 @@ jobs:
       
       - name: Install and package models
         run: |
-          # Install models package
-          cd models
-          pip install -e .
-          cd ..
-          
-          # Copy models to API directory
+          # Create job_assistant_models directory inside api
           mkdir -p api/job_assistant_models
+          
+          # Copy models files to api/job_assistant_models
           cp -r models/* api/job_assistant_models/
           
-          # Update requirements.txt to include necessary dependencies
-          cat >> api/requirements.txt << 'EOF'
+          # Create __init__.py to make it a proper package
+          echo 'from .job_models import JobRecord, WebhookPayload, Workflow' > api/job_assistant_models/__init__.py
+          echo '' >> api/job_assistant_models/__init__.py
+          echo '__all__ = ["JobRecord", "WebhookPayload", "Workflow"]' >> api/job_assistant_models/__init__.py
           
-          # Models dependencies
-          pydantic>=2.0.0
-          typing-extensions>=4.0.0
-          EOF
+          # Update requirements.txt to include necessary dependencies
+          if ! grep -q "pydantic" api/requirements.txt; then
+            echo '' >> api/requirements.txt
+            echo '# Models dependencies' >> api/requirements.txt
+            echo 'pydantic>=2.0.0' >> api/requirements.txt
+            echo 'typing-extensions>=4.0.0' >> api/requirements.txt
+          fi
+          
+          # Copy app.py to the root of the api directory if it's in a subdirectory
+          if [ -f api/api/app.py ] && [ ! -f api/app.py ]; then
+            cp api/api/app.py api/app.py
+          fi
       
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20
@@ -43,4 +50,4 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./api 
+          working-directory: ./api

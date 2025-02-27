@@ -1,6 +1,6 @@
 from flask import jsonify, send_from_directory, current_app
 import os
-from api.routes.base_route import BaseRoute
+from .base_route import BaseRoute
 
 class MainRoutes(BaseRoute):
     """

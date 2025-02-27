@@ -11,6 +11,5 @@
       "src": "/(.*)",
       "dest": "index.py"
     }
-  ],
-  "installCommand": "pip3 install -e ."
+  ]
 } 

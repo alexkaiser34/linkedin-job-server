@@ -1,6 +1,6 @@
 from flask import request, jsonify
-from api.routes.base_route import BaseRoute
-from api.services.supabase_service import process_supabase_webhook
+from .base_route import BaseRoute
+from services.supabase_service import process_supabase_webhook
 
 class WebhookRoutes(BaseRoute):
     """

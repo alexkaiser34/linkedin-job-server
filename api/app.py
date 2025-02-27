@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 import traceback
-from api.routes import Routes
+from routes import Routes
 
 class FlaskApplication:
     """

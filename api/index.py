@@ -1,7 +1,22 @@
 # This is the entry point for both Vercel and local development
-from api.app import FlaskApplication
-import argparse
 import sys
+import os
+
+# Add the current directory to the Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Check if we're running on Vercel or locally
+if os.environ.get('VERCEL'):
+    # On Vercel, import directly
+    from app import FlaskApplication
+else:
+    # Locally, import from the api package
+    try:
+        from api.app import FlaskApplication
+    except ImportError:
+        from app import FlaskApplication
+
+import argparse
 
 # Create the Flask application
 flask_app = FlaskApplication()

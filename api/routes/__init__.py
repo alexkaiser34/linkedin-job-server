@@ -1,8 +1,8 @@
 # This file makes the routes directory a Python package 
 
 from flask import Flask
-from api.routes.main_routes import MainRoutes
-from api.routes.webhook_routes import WebhookRoutes
+from .main_routes import MainRoutes
+from .webhook_routes import WebhookRoutes
 
 class Routes:
     """
