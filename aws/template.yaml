@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Job processing workflow with AI filtering and user approval
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Environment (dev or prod)
+
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API Key
+
+Resources:
+  # API Gateway
+  JobProcessorApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'POST, GET, OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+  # DynamoDB Table for workflow state
+  WorkflowTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: workflow_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: workflow_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+
+  # S3 Bucket for generated documents
+  DocumentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireDocumentsAfter30Days
+            Status: Enabled
+            ExpirationInDays: 30
+
+  # SNS Topic for notifications
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Job Notifications
+
+  # Lambda Functions
+  JobProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: job_processor/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          WORKFLOW_TABLE: !Ref WorkflowTable
+          SNS_TOPIC_ARN: !Ref NotificationTopic
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          API_BASE_URL: !Sub "https://${JobProcessorApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkflowTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotificationTopic.TopicName
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref JobProcessorApi
+            Path: /process
+            Method: post
+
+  UserResponseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: user_response/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          WORKFLOW_TABLE: !Ref WorkflowTable
+          DOCUMENT_GENERATOR_FUNCTION: !Ref DocumentGeneratorFunction.Arn
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkflowTable
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DocumentGeneratorFunction
+      Events:
+        ApproveEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref JobProcessorApi
+            Path: /approve
+            Method: get
+        RejectEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref JobProcessorApi
+            Path: /reject
+            Method: get
+
+  DocumentGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: document_generator/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          WORKFLOW_TABLE: !Ref WorkflowTable
+          DOCUMENT_BUCKET: !Ref DocumentBucket
+          SNS_TOPIC_ARN: !Ref NotificationTopic
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkflowTable
+        - S3CrudPolicy:
+            BucketName: !Ref DocumentBucket
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotificationTopic.TopicName
+
+  TimeoutCheckerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: timeout_checker/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          WORKFLOW_TABLE: !Ref WorkflowTable
+          SNS_TOPIC_ARN: !Ref NotificationTopic
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkflowTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotificationTopic.TopicName
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Name: TimeoutCheckerSchedule
+            Description: Checks for timed-out workflows every minute
+            Enabled: true
+
+Outputs:
+  JobProcessorApiUrl:
+    Description: "API Gateway endpoint URL for job processing"
+    Value: !Sub "https://${JobProcessorApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/process"
+
+  ApproveUrl:
+    Description: "URL for approving jobs"
+    Value: !Sub "https://${JobProcessorApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/approve"
+
+  RejectUrl:
+    Description: "URL for rejecting jobs"
+    Value: !Sub "https://${JobProcessorApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/reject"
+
+  NotificationTopicArn:
+    Description: "ARN of the SNS topic for notifications"
+    Value: !Ref NotificationTopic
