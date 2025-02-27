@@ -1,0 +1,53 @@
+name: Deploy Scraper to Oracle VM
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scraper/**'
+      - 'models/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+      
+      - name: Package models with scraper
+        run: |
+          # Create a deployment package
+          mkdir -p scraper/job_assistant_models
+          cp -r models/* scraper/job_assistant_models/
+          
+          # Create a simple setup.py in the scraper directory
+          cat > scraper/setup.py << 'EOF'
+          from setuptools import setup, find_packages
+          
+          setup(
+              name="job-assistant-scraper",
+              version="0.1.0",
+              packages=find_packages(),
+          )
+          EOF
+          
+          tar -czf deployment.tar.gz scraper/
+      
+      - name: Deploy to Oracle VM
+        run: |
+          # Copy to VM
+          scp -o StrictHostKeyChecking=no deployment.tar.gz ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }}:/tmp/
+          
+          # Extract and install on VM
+          ssh -o StrictHostKeyChecking=no ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} << 'EOF'
+            cd /home/${{ secrets.ORACLE_VM_USER }}
+            tar -xzf /tmp/deployment.tar.gz
+
+            cd scraper
+            pip3 install -e .
+            pip3 install -r requirements.txt
+          EOF

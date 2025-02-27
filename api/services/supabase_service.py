@@ -5,27 +5,7 @@ import threading
 import time
 from collections import deque
 import copy
-
-@dataclass
-class JobRecord:
-    id: str
-    job_url: str
-    title: str
-    company: str
-    location: Optional[str] = None
-    posted_time: Optional[str] = None
-    applicants: Optional[str] = None
-    description: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-@dataclass
-class SupabaseWebhookPayload:
-    type: Literal["INSERT", "UPDATE", "DELETE"]
-    table: str
-    schema: str
-    record: Optional[JobRecord] = None
-    old_record: Optional[JobRecord] = None
+from job_assistant_models import JobRecord, WebhookPayload
 
 class SupabaseWebhookService:
     """Service for handling Supabase webhooks with batching capability"""
@@ -85,7 +65,7 @@ class SupabaseWebhookService:
             updated_at=updated_at
         )
     
-    def process_job_batch(self, payloads: List[SupabaseWebhookPayload]):
+    def process_job_batch(self, payloads: List[WebhookPayload]):
         """
         Process a batch of job payloads
         This is the main async function that will be called with all collected payloads
@@ -212,7 +192,7 @@ class SupabaseWebhookService:
                 old_record = self.parse_job_record(data['old_record'])
                 
             # Create the parsed payload object
-            payload = SupabaseWebhookPayload(
+            payload = WebhookPayload(
                 type=webhook_type,
                 table=table_name,
                 schema=schema_name,

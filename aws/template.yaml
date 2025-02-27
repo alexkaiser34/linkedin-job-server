@@ -85,6 +85,8 @@ Resources:
             RestApiId: !Ref JobProcessorApi
             Path: /process
             Method: post
+      Layers:
+        - !Ref ModelsLayer
 
   UserResponseFunction:
     Type: AWS::Serverless::Function
@@ -138,6 +140,8 @@ Resources:
             BucketName: !Ref DocumentBucket
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt NotificationTopic.TopicName
+      Layers:
+        - !Ref ModelsLayer
 
   TimeoutCheckerFunction:
     Type: AWS::Serverless::Function
@@ -164,6 +168,16 @@ Resources:
             Name: TimeoutCheckerSchedule
             Description: Checks for timed-out workflows every minute
             Enabled: true
+
+  ModelsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: job-assistant-models
+      Description: Shared models for job assistant
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - python3.9
+      RetentionPolicy: Retain
 
 Outputs:
   JobProcessorApiUrl:

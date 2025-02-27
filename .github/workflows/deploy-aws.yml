@@ -1,0 +1,53 @@
+name: Deploy AWS Lambda Functions
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'aws/**'
+      - 'models/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      
+      - name: Setup AWS SAM CLI
+        uses: aws-actions/setup-sam@v1
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+      
+      - name: Install and package models
+        run: |
+          # Install models package
+          cd models
+          pip install -e .
+          cd ..
+          
+          # Copy models to AWS Lambda functions
+          mkdir -p aws/shared/python
+          cp -r models aws/shared/python/job_assistant_models
+          
+          # Create a layer directory structure
+          mkdir -p aws/layer/python
+          cp -r models aws/layer/python/job_assistant_models
+      
+      - name: Build and deploy with SAM
+        run: |
+          cd aws
+          sam build
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+            --parameter-overrides \
+            Environment=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
+            OpenAIApiKey=${{ secrets.OPENAI_API_KEY }} 

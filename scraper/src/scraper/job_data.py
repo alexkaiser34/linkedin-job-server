@@ -1,26 +1,15 @@
-from dataclasses import dataclass
-from datetime import datetime
+from models import JobRecord as JobData
 
-@dataclass
-class JobData:
-    """Data class to store job information"""
-    title: str
-    job_url: str
-    company: str
-    location: str
-    posted_time: str
-    applicants: str
-    description: str
-
-    @classmethod
-    def create_empty(cls):
-        """Create an empty job data object with default values"""
-        return cls(
-            title="Not available",
-            job_url="Not available",
-            company="Not available",
-            location="Not available",
-            posted_time="Not available",
-            applicants="Not available",
-            description="Not available"
-        ) 
+# If you need additional functionality:
+class EnhancedJobData(JobData):
+    """Extends JobRecord with scraper-specific functionality"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Add any scraper-specific fields or methods
+    
+    def to_supabase_format(self):
+        """Convert to format expected by Supabase"""
+        data = self.to_dict()
+        # Transform as needed
+        return data 

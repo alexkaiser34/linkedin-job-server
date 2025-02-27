@@ -114,6 +114,104 @@ See the README files in each component directory for specific setup instructions
 - [API Setup](/api/README.md)
 - [AWS Lambda Setup](/aws/README.md)
 
+## Development Setup
+
+This project uses a shared models package across multiple applications. Follow these steps to set up your development environment:
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/job-application-assistant.git
+cd job-application-assistant
+```
+
+### 2. Set Up the Shared Models
+
+Run the setup script to install the shared models package and create necessary symlinks:
+
+```bash
+chmod +x setup_dev.sh
+./setup_dev.sh
+```
+
+This script:
+- Installs the models package in development mode
+- Creates symlinks to make the models accessible to all applications
+- Sets up your environment for local development
+
+### 3. Running Individual Applications
+
+#### API (Flask)
+```bash
+cd api
+pip install -r requirements.txt
+flask run
+```
+
+#### Scraper
+```bash
+cd scraper
+pip install -r requirements.txt
+python main.py
+```
+
+#### AWS Lambda Functions (Local Testing)
+```bash
+cd aws
+sam local invoke JobProcessorFunction -e events/job_event.json
+```
+
+## Deployment
+
+The project uses GitHub Actions for automated deployment to different environments:
+
+### API Deployment (Vercel)
+
+The API is automatically deployed to Vercel when changes are pushed to the `main` branch affecting the `api/` or `models/` directories. The workflow:
+- Packages the shared models with the API
+- Deploys to Vercel using your configured project settings
+
+### AWS Lambda Deployment
+
+AWS Lambda functions are deployed using AWS SAM when changes are pushed to the `main` branch affecting the `aws/` or `models/` directories. The workflow:
+- Creates a Lambda Layer containing the shared models
+- Builds and deploys all Lambda functions with the shared layer
+- Sets environment variables based on GitHub secrets
+
+### Scraper Deployment (Oracle VM)
+
+The scraper is deployed to an Oracle VM when changes are pushed to the `main` branch affecting the `scraper/` or `models/` directories. The workflow:
+- Packages the scraper with the shared models
+- Transfers the package to the VM via SSH
+- Installs dependencies and restarts the service
+
+## Project Structure
+
+```
+job-application-assistant/
+├── api/                  # Flask API for webhooks
+├── aws/                  # AWS Lambda functions
+│   ├── job_processor/    # Evaluates jobs with AI
+│   ├── document_generator/ # Creates tailored documents
+│   ├── user_response/    # Handles user approvals/rejections
+│   └── timeout_checker/  # Manages workflow timeouts
+├── models/               # Shared data models
+│   └── job_models.py     # Core data structures
+├── scraper/              # LinkedIn job scraper
+└── .github/workflows/    # CI/CD pipelines
+```
+
+## Working with Shared Models
+
+When making changes to the data models:
+
+1. Update the models in the `models/` directory
+2. Run `./setup_dev.sh` to update symlinks
+3. Test changes across all applications
+4. Commit and push changes - GitHub Actions will handle deployment
+
+The shared models ensure consistency across all components of the system.
+
 ## License
 
 [MIT License](LICENSE)
