@@ -13,10 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          # Decode the base64-encoded key
+          echo "${{ secrets.ORACLE_VM_SSH_KEY }}" | base64 -d > ~/.ssh/oracle_vm_key
+          chmod 600 ~/.ssh/oracle_vm_key
+          ssh-keyscan -H ${{ secrets.ORACLE_VM_HOST }} >> ~/.ssh/known_hosts
+          # Debug: Check key format (don't print the actual key)
+          echo "Key file permissions:"
+          ls -la ~/.ssh/oracle_vm_key
+          echo "Key file format check:"
+          head -n 1 ~/.ssh/oracle_vm_key | grep -q "BEGIN" && echo "Key begins correctly" || echo "Key format issue"
       
       - name: Package models with scraper
         run: |
@@ -39,15 +47,22 @@ jobs:
       
       - name: Deploy to Oracle VM
         run: |
-          # Copy to VM
-          scp -o StrictHostKeyChecking=no deployment.tar.gz ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }}:/tmp/
+          # Copy to VM using the private key
+          scp -i ~/.ssh/oracle_vm_key -o StrictHostKeyChecking=no deployment.tar.gz ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }}:/tmp/
           
           # Extract and install on VM
-          ssh -o StrictHostKeyChecking=no ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} << 'EOF'
+          ssh -i ~/.ssh/oracle_vm_key -o StrictHostKeyChecking=no ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} << 'EOF'
             cd /home/${{ secrets.ORACLE_VM_USER }}
             tar -xzf /tmp/deployment.tar.gz
 
             cd scraper
             pip3 install -e .
             pip3 install -r requirements.txt
+            
+            # Restart the service if it exists
+            if command -v systemctl &> /dev/null && systemctl is-active --quiet job-scraper; then
+              sudo systemctl restart job-scraper
+            else
+              echo "Service job-scraper not found or systemctl not available, skipping restart"
+            fi
           EOF

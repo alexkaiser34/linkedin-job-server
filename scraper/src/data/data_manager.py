@@ -1,13 +1,13 @@
 import csv
 from datetime import datetime
 from typing import List
-from ..scraper.job_data import JobData
+from ..scraper.job_data import EnhancedJobData
 
 class DataManager:
     def __init__(self):
-        self.jobs: List[JobData] = []
+        self.jobs: List[EnhancedJobData] = []
 
-    def add_job(self, job: JobData):
+    def add_job(self, job: EnhancedJobData):
         """Add a job to the collection"""
         self.jobs.append(job)
 

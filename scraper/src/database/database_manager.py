@@ -1,7 +1,7 @@
 import os
 from supabase import create_client
 from typing import List
-from ..scraper.job_data import JobData
+from ..scraper.job_data import EnhancedJobData
 from .migrations.migration_manager import MigrationManager
 
 class DatabaseManager:
@@ -24,7 +24,7 @@ class DatabaseManager:
             print(f"Error initializing database: {str(e)}")
             raise
 
-    def upsert_jobs(self, jobs: List[JobData]):
+    def upsert_jobs(self, jobs: List[EnhancedJobData]):
         """
         Upsert job data into Supabase database.
         Uses job_url as the unique identifier.
@@ -36,7 +36,7 @@ class DatabaseManager:
             for job in jobs:
                 if job.job_url not in seen and job.job_url != "Not available":
                     seen.add(job.job_url)
-                    job_dicts.append(job.__dict__)
+                    job_dicts.append(job.to_supabase_format())
             
             if not job_dicts:
                 return

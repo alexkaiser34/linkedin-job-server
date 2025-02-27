@@ -14,7 +14,7 @@ from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException
 )
-from ..scraper.job_data import JobData
+from ..scraper.job_data import EnhancedJobData, JobData
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -268,7 +268,7 @@ class LinkedInScraper:
             print(f"Timeout waiting for job details to load: {str(e)}")
             return False
 
-    def extract_job_details(self, job_index: int) -> Tuple[JobData, bool]:
+    def extract_job_details(self, job_index: int) -> Tuple[EnhancedJobData, bool]:
         """Extract job details from a job card using its index in the list"""
         job_data = JobData.create_empty()
         
@@ -323,19 +323,19 @@ class LinkedInScraper:
                 
             except StaleElementReferenceException:
                 print("Stale element encountered while getting job details, skipping job")
-                return job_data, False
+                return EnhancedJobData(job_data), False
             except Exception as e:
                 print(f"Error extracting job details after loading: {str(e)}")
-                return job_data, False
+                return EnhancedJobData(job_data), False
             
-            return job_data, True
+            return EnhancedJobData(job_data), True
             
         except StaleElementReferenceException:
             print("Stale element encountered, skipping job")
-            return job_data, False
+            return EnhancedJobData(job_data), False
         except Exception as e:
             print(f"Error extracting job details: {str(e)}")
-            return job_data, False
+            return EnhancedJobData(job_data), False
 
     def _get_job_url(self, job_card_id: str) -> str:
         """Get the job URL from the job card ID"""
