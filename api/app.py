@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 import traceback
 from routes import Routes
 
+
 class FlaskApplication:
     """
     Main Flask application class that encapsulates the app creation and configuration
