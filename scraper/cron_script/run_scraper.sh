@@ -6,7 +6,7 @@ date
 echo "Starting scraper..."
 
 # Navigate to the project directory
-cd /home/ubuntu/LinkedIn-Job-Scraper
+cd /home/ubuntu/scraper
 
 # Run the Python script
 python3 main.py
