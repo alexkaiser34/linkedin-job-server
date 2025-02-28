@@ -15,18 +15,12 @@ Parameters:
     Type: String
     NoEcho: true
     Description: OpenAI API Key
+    
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket for documents
 
 Resources:
-  # API Gateway
-  JobProcessorApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: !Ref Environment
-      Cors:
-        AllowMethods: "'POST, GET, OPTIONS'"
-        AllowHeaders: "'Content-Type'"
-        AllowOrigin: "'*'"
-
   # DynamoDB Table for workflow state
   WorkflowTable:
     Type: AWS::DynamoDB::Table
@@ -42,113 +36,61 @@ Resources:
         AttributeName: expires_at
         Enabled: true
 
-  # S3 Bucket for generated documents
-  DocumentBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      LifecycleConfiguration:
-        Rules:
-          - Id: ExpireDocumentsAfter30Days
-            Status: Enabled
-            ExpirationInDays: 30
-
   # SNS Topic for notifications
   NotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: Job Notifications
 
-  # Lambda Functions
-  JobProcessorFunction:
-    Type: AWS::Serverless::Function
+  # Models Layer
+  ModelsLayer:
+    Type: AWS::Serverless::LayerVersion
     Properties:
-      CodeUri: job_processor/
-      Handler: app.lambda_handler
-      Runtime: python3.9
-      Timeout: 30
-      MemorySize: 256
-      Environment:
-        Variables:
-          WORKFLOW_TABLE: !Ref WorkflowTable
-          SNS_TOPIC_ARN: !Ref NotificationTopic
-          OPENAI_API_KEY: !Ref OpenAIApiKey
-          API_BASE_URL: !Sub "https://${JobProcessorApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref WorkflowTable
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt NotificationTopic.TopicName
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            RestApiId: !Ref JobProcessorApi
-            Path: /process
-            Method: post
-      Layers:
-        - !Ref ModelsLayer
+      LayerName: job-assistant-models
+      Description: Shared models for job assistant
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - python3.9
+      RetentionPolicy: Retain
+      CompatibleArchitectures:
+        - arm64
 
-  UserResponseFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: user_response/
-      Handler: app.lambda_handler
-      Runtime: python3.9
-      Timeout: 10
-      MemorySize: 128
-      Environment:
-        Variables:
-          WORKFLOW_TABLE: !Ref WorkflowTable
-          DOCUMENT_GENERATOR_FUNCTION: !Ref DocumentGeneratorFunction.Arn
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref WorkflowTable
-        - LambdaInvokePolicy:
-            FunctionName: !Ref DocumentGeneratorFunction
-      Events:
-        ApproveEvent:
-          Type: Api
-          Properties:
-            RestApiId: !Ref JobProcessorApi
-            Path: /approve
-            Method: get
-        RejectEvent:
-          Type: Api
-          Properties:
-            RestApiId: !Ref JobProcessorApi
-            Path: /reject
-            Method: get
-
+  # Document Generator Function (no API Gateway dependency)
   DocumentGeneratorFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: document_generator/
       Handler: app.lambda_handler
       Runtime: python3.9
+      Architectures:
+        - arm64
       Timeout: 60
       MemorySize: 512
       Environment:
         Variables:
           WORKFLOW_TABLE: !Ref WorkflowTable
-          DOCUMENT_BUCKET: !Ref DocumentBucket
+          DOCUMENT_BUCKET: !Ref S3BucketName
           SNS_TOPIC_ARN: !Ref NotificationTopic
           OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref WorkflowTable
         - S3CrudPolicy:
-            BucketName: !Ref DocumentBucket
+            BucketName: !Ref S3BucketName
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt NotificationTopic.TopicName
       Layers:
         - !Ref ModelsLayer
 
+  # Timeout Checker Function (no API Gateway dependency)
   TimeoutCheckerFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: timeout_checker/
       Handler: app.lambda_handler
       Runtime: python3.9
+      Architectures:
+        - arm64
       Timeout: 30
       MemorySize: 128
       Environment:
@@ -168,16 +110,200 @@ Resources:
             Name: TimeoutCheckerSchedule
             Description: Checks for timed-out workflows every minute
             Enabled: true
+      Layers:
+        - !Ref ModelsLayer
 
-  ModelsLayer:
-    Type: AWS::Serverless::LayerVersion
+  # API Gateway - Created separately from functions
+  JobProcessorApi:
+    Type: AWS::ApiGateway::RestApi
     Properties:
-      LayerName: job-assistant-models
-      Description: Shared models for job assistant
-      ContentUri: layer/
-      CompatibleRuntimes:
-        - python3.9
-      RetentionPolicy: Retain
+      Name: JobProcessorApi
+      Description: API for job processing workflow
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resources
+  ProcessResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ParentId: !GetAtt JobProcessorApi.RootResourceId
+      PathPart: process
+
+  ApproveResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ParentId: !GetAtt JobProcessorApi.RootResourceId
+      PathPart: approve
+
+  RejectResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ParentId: !GetAtt JobProcessorApi.RootResourceId
+      PathPart: reject
+
+  # API Gateway Methods
+  ProcessMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ResourceId: !Ref ProcessResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${JobProcessorFunction.Arn}/invocations
+
+  ApproveMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ResourceId: !Ref ApproveResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserResponseFunction.Arn}/invocations
+
+  RejectMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ResourceId: !Ref RejectResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserResponseFunction.Arn}/invocations
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ProcessMethod
+      - ApproveMethod
+      - RejectMethod
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      Description: Deployment for job processor API
+
+  # API Gateway Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref Environment
+
+  # CORS Configuration
+  ApiGatewayCorsOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref JobProcessorApi
+      ResourceId: !GetAtt JobProcessorApi.RootResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: "{}"
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: 'Empty'
+
+  # Lambda Functions with API Gateway
+  JobProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: job_processor/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          WORKFLOW_TABLE: !Ref WorkflowTable
+          SNS_TOPIC_ARN: !Ref NotificationTopic
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          API_BASE_URL: !Sub "https://${JobProcessorApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkflowTable
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketName
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotificationTopic.TopicName
+      Layers:
+        - !Ref ModelsLayer
+
+  UserResponseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: user_response/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - arm64
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          WORKFLOW_TABLE: !Ref WorkflowTable
+          DOCUMENT_GENERATOR_FUNCTION: !Ref DocumentGeneratorFunction
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkflowTable
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DocumentGeneratorFunction
+      Layers:
+        - !Ref ModelsLayer
+
+  # Lambda Permissions
+  JobProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref JobProcessorFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${JobProcessorApi}/*/POST/process
+
+  UserResponseApprovePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserResponseFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${JobProcessorApi}/*/GET/approve
+
+  UserResponseRejectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserResponseFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${JobProcessorApi}/*/GET/reject
 
 Outputs:
   JobProcessorApiUrl:
@@ -195,3 +321,7 @@ Outputs:
   NotificationTopicArn:
     Description: "ARN of the SNS topic for notifications"
     Value: !Ref NotificationTopic
+    
+  DocumentBucketName:
+    Description: "Name of the S3 bucket for documents"
+    Value: !Ref S3BucketName

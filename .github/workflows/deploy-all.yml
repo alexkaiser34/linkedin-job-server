@@ -1,0 +1,64 @@
+name: Deploy All Components
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'aws/**'
+      - 'models/**'
+      - 'api/**'
+      - 'scraper/**'
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      aws-changed: ${{ steps.filter.outputs.aws }}
+      api-changed: ${{ steps.filter.outputs.api }}
+      scraper-changed: ${{ steps.filter.outputs.scraper }}
+      models-changed: ${{ steps.filter.outputs.models }}
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Check for file changes
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            aws:
+              - 'aws/**'
+            api:
+              - 'api/**'
+            scraper:
+              - 'scraper/**'
+            models:
+              - 'models/**'
+  
+  deploy-aws:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.aws-changed == 'true' || needs.check-changes.outputs.models-changed == 'true' }}
+    uses: ./.github/workflows/deploy-aws.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEPLOYMENT_BUCKET: ${{ secrets.AWS_DEPLOYMENT_BUCKET }}
+      AWS_APPLICATION_BUCKET: ${{ secrets.AWS_APPLICATION_BUCKET }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  
+  deploy-api:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.api-changed == 'true' || needs.check-changes.outputs.models-changed == 'true' }}
+    uses: ./.github/workflows/deploy-api.yml
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  
+  deploy-scraper:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.scraper-changed == 'true' || needs.check-changes.outputs.models-changed == 'true' }}
+    uses: ./.github/workflows/deploy-scraper.yml
+    secrets:
+      ORACLE_VM_SSH_KEY: ${{ secrets.ORACLE_VM_SSH_KEY }}
+      ORACLE_VM_USER: ${{ secrets.ORACLE_VM_USER }}
+      ORACLE_VM_HOST: ${{ secrets.ORACLE_VM_HOST }}

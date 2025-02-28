@@ -1,11 +1,14 @@
 name: Deploy Scraper to Oracle VM
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'scraper/**'
-      - 'models/**'
+  workflow_call:
+    secrets:
+      ORACLE_VM_SSH_KEY:
+        required: true
+      ORACLE_VM_USER:
+        required: true
+      ORACLE_VM_HOST:
+        required: true
 
 jobs:
   deploy:
